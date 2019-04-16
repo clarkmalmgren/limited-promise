@@ -2,7 +2,7 @@
   "name": "limited-promise",
   "version": "0.0.1",
   "description": "Rate Limited Promises powered by a credit-allowing Lazy Token Bucket",
-  "main": "index.js",
+  "main": "dist/bundle.js",
   "repository": "git@github.com:clarkmalmgren/limited-promise.git",
   "author": "Clark Malmgren <cmalmgren@grubhub.com>",
   "license": "MIT",
