@@ -1,5 +1,5 @@
 
-
+/* Configuration for a lazy bucket */
 export type LazyBucketConfig = {
   /* Number of tokens in the bucket, if tokens are available, will resolve immediately */
   tokens?: number
@@ -11,12 +11,14 @@ export type LazyBucketConfig = {
   rate?: number
 }
 
+/* Internal type where all fields are defined */
 type FullLazyBucketConfig = {
   tokens: number
   tokenCredit: number
   rate: number
 }
 
+/* The default configuration if nothing is passed */
 const DefaultConfig: FullLazyBucketConfig = {
   tokens: 10,
   tokenCredit: 10,
@@ -26,12 +28,20 @@ const DefaultConfig: FullLazyBucketConfig = {
 export class LazyBucket {
 
   private config: FullLazyBucketConfig
-  private balance: number
+  private _balance: number
   private lastTime: number
 
-  constructor(config: LazyBucketConfig= {}) {
+  /**
+   * Constructs a new lazy bucket with the given config. If no intiial balance is provided,
+   * it will default to a "full" bucket. There are no restrictions on the initialBalance and
+   * thus can be used to start with effectively an overflowing or depleated bucket.
+   * 
+   * @param config 
+   * @param initialBalance 
+   */
+  constructor(config: LazyBucketConfig = {}, initialBalance?: number) {
     this.config = Object.assign(Object.assign({}, DefaultConfig), config)
-    this.balance = this.config.tokens
+    this._balance = initialBalance || this.config.tokens
     this.lastTime = new Date().getTime()
   }
 
@@ -41,19 +51,21 @@ export class LazyBucket {
     const dt = now - this.lastTime
     this.lastTime = now
 
-    // Calculate the new balance
-    const addedTokens = dt / 1000.0 * this.config.rate
-    this.balance = Math.min(this.balance + addedTokens, this.config.tokens)
+    // Calculate the new balance only if below the threshold
+    if (this._balance < this.config.tokens) {
+      const addedTokens = dt / 1000.0 * this.config.rate
+      this._balance = Math.min(this._balance + addedTokens, this.config.tokens)
+    }
 
     // Time to calculate duration
-    if (this.balance >= 1) {
-      this.balance--
+    if (this._balance >= 1) {
+      this._balance--
       return 0
-    } else if (this.balance < -this.config.tokenCredit) {
-      throw new Error(`Exceeded token credit allowance. Current Balance: ${this.balance}`)
+    } else if (this._balance < -this.config.tokenCredit + 1) {
+      throw new Error(`Exceeded token credit allowance. Current Balance: ${this._balance}`)
     } else {
-      const delayInTokens = 1 - this.balance
-      this.balance--
+      const delayInTokens = 1 - this._balance
+      this._balance--
       return 1000.0 * delayInTokens / this.config.rate
     }
   }
@@ -71,5 +83,9 @@ export class LazyBucket {
         reject(e)
       }
     })
+  }
+
+  get balance(): number {
+    return this._balance
   }
 }
