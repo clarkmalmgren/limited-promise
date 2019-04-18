@@ -1,6 +1,6 @@
 {
   "name": "limited-promise",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Rate Limited Promises powered by a credit-allowing Lazy Token Bucket",
   "main": "dist/bundle.js",
   "repository": "git@github.com:clarkmalmgren/limited-promise.git",
