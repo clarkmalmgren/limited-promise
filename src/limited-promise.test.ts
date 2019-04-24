@@ -40,7 +40,7 @@ it('should allow for borrowing at an appropriate delay', () => {
     .all(promises)
     .then(delays => {
       delays.slice(0, 9).forEach(d => expect(d).toBeLessThan(1000))
-      expect(delays[10]).toBeGreaterThanOrEqual(100)
+      expect(delays[10]).toBeGreaterThanOrEqual(99)
     })
 })
 
@@ -51,7 +51,7 @@ it('should replenish the token bucket after time passes', () => {
   return Promise
     .all(promises)
     .then(delays => {
-      expect(delays[2]).toBeGreaterThanOrEqual(100)
+      expect(delays[2]).toBeGreaterThanOrEqual(99)
       return delay(200)
     })
     .then(() => generate(bucket, 1)[0])
