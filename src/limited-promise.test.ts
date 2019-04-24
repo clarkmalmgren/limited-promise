@@ -1,4 +1,4 @@
-import { LazyBucket } from './lazy-bucket'
+import LimitedPromise from './index'
 
 function now(): number { return new Date().getTime() }
 
@@ -8,7 +8,7 @@ function delay(timeout: number): Promise<void> {
   })
 }
 
-function generate(bucket: LazyBucket, count: number): Promise<number>[] {
+function generate(bucket: LimitedPromise, count: number): Promise<number>[] {
   const start: number = now()
 
   return Array
@@ -17,7 +17,7 @@ function generate(bucket: LazyBucket, count: number): Promise<number>[] {
 }
 
 it('should dispatch available tokens immediately leaving a balance of zero', () => {
-  const bucket = new LazyBucket()
+  const bucket = new LimitedPromise()
   const promises = generate(bucket, 10)
 
   expect(bucket.balance).toBeGreaterThanOrEqual(0)
@@ -30,7 +30,7 @@ it('should dispatch available tokens immediately leaving a balance of zero', () 
 })
 
 it('should allow for borrowing at an appropriate delay', () => {
-  const bucket = new LazyBucket({ rate: 10, tokens: 10 })
+  const bucket = new LimitedPromise({ rate: 10, tokens: 10 })
   const promises = generate(bucket, 11)
 
   expect(bucket.balance).toBeGreaterThanOrEqual(-1)
@@ -45,7 +45,7 @@ it('should allow for borrowing at an appropriate delay', () => {
 })
 
 it('should replenish the token bucket after time passes', () => {
-  const bucket = new LazyBucket({ rate: 10, tokens: 2 })
+  const bucket = new LimitedPromise({ rate: 10, tokens: 2 })
   const promises = generate(bucket, 3)
 
   return Promise
@@ -61,14 +61,14 @@ it('should replenish the token bucket after time passes', () => {
 })
 
 it('should reject requests immediately if the credit has been over-extended', () => {
-  const bucket = new LazyBucket({ rate: 10, tokens: 2, tokenCredit: 2 })
+  const bucket = new LimitedPromise({ rate: 10, tokens: 2, tokenCredit: 2 })
   const promises = generate(bucket, 5)
 
   expect(promises[4]).rejects.toThrow(/Exceeded token credit allowance.*/)
 })
 
 it('should replenish even after the credit has been over-extended', () => {
-  const bucket = new LazyBucket({ rate: 10, tokens: 2, tokenCredit: 1 })
+  const bucket = new LimitedPromise({ rate: 10, tokens: 2, tokenCredit: 1 })
   const promises = generate(bucket, 4)
 
   expect(promises[3]).rejects.toThrow(/Exceeded token credit allowance.*/)
@@ -81,7 +81,7 @@ it('should replenish even after the credit has been over-extended', () => {
 })
 
 it('should support a overflowing bucket if constructed that way', () => {
-  const bucket = new LazyBucket({ tokens: 10 }, 20)
+  const bucket = new LimitedPromise({ tokens: 10 }, 20)
   expect(bucket.balance).toEqual(20)
 
   const promises = generate(bucket, 20)
@@ -96,7 +96,7 @@ it('should support a overflowing bucket if constructed that way', () => {
 })
 
 it('should support a depleated bucket if constructed that way', () => {
-  const bucket = new LazyBucket({ tokens: 10, rate: 10 }, -1)
+  const bucket = new LimitedPromise({ tokens: 10, rate: 10 }, -1)
   expect(bucket.balance).toEqual(-1)
 
   const promise = generate(bucket, 1)[0]
@@ -104,7 +104,31 @@ it('should support a depleated bucket if constructed that way', () => {
 
   return promise
     .then((d) => {
-      expect(d).toBeGreaterThanOrEqual(200)
+      expect(d).toBeGreaterThanOrEqual(199)
       expect(d).toBeLessThanOrEqual(210)
     })
+})
+
+it('should reject promises when cancelled', () => {
+  const bucket = new LimitedPromise({ rate: 10 }, -5)
+  const promises = generate(bucket, 5)
+
+  bucket.cancel()
+
+  const assertions =
+    promises.map(p => {
+      return expect(p).rejects.toThrow("Bucket Cancelled")
+    })
+
+  return Promise.all(assertions)
+})
+
+
+it('should do nothing when cancelling if all tasks have fired', () => {
+  const bucket = new LimitedPromise({ rate: 10 }, 0)
+  const promises = generate(bucket, 2)
+
+  return Promise
+    .all(promises)
+    .then(() => bucket.cancel())
 })
