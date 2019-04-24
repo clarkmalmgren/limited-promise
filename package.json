@@ -1,6 +1,6 @@
 {
   "name": "limited-promise",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Rate Limited Promises powered by a credit-allowing Lazy Token Bucket",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
