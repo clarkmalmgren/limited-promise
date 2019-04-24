@@ -1,3 +1,12 @@
 language: node_js
 node_js:
-  - stable
+- stable
+deploy:
+  provider: npm
+  email: cmalmgren@gmail.com
+  api_key:
+    secure: Hh9f44N6jUGibc6mPMzjeOogWkztqZpMrv1+iKRkvPh4/wBFvZP+JOfeYzuEdz5oBjE40dNJ9xFHMXr2rekFiulbco0gQOubjh0ncgJZCtvdFlxLzfN4nrrQ+oTZyvj3hcmoYJ9TnUKe78JL6sbBRkdqKK4eqLhx0zGlsizA6L1WE/vYAWb4DukFwdjw8XZ7n5ybaGo6fEDGmPkamPdo7r2GxC55cNGxHv02MSjukNLxFYUhhFTKlfhyCbQAyDvzC+SjQzx3O3Bb02wxx7vKInImHmroLZc1B8Xvcceei+9XHKuukSYtkfCmR/3h/0uCB/tTmi0/9Hfbs5DdyGfUGIZzPgsC9/8dZvFkehf2sGtkX4/Pp9GdepiJXNKAD8WerAI0gvjXLsdxCGW5vBxXLnmEpIvSJOL2O0WEK9kzulDoK9vWHRDHxu30JrUdt7GsjHnhff4tIomUbnOejMx1NiQ93maZ33BUcnSPidKRIfBnR257jAvD1JUZRywUSAUCzdFbcVMuvTWBz+m16T6YpYWaLJaJaKOLzo8j/TEfFOiNCB2pBHaIsXuTZ30rULY7Wx4J5OguSSyLRSqXeVqYbV4XhnscTfSKYmyynxHDOa2uRGiGoGnjap2sdRrt2OUY9f0FbOrDT0640sUkLb/b0zEpo0dJTgu3d2EFsbI4ZVY=
+  on:
+    tags: true
+    repo: clarkmalmgren/limited-promise
+  skip_cleanup: true
