@@ -16,15 +16,15 @@ $ npm install limited-promise
 ## Usage
 
 ```typescript
-import LazyBucket, { LazyBucketConfig } from 'limited-promise'
+import LimitedPromise, { LimitedPromiseConfig } from 'limited-promise'
 
-const config: LazyBucketConfig = {
+const config: LimitedPromiseConfig = {
   tokens: 10,      // maximum burst "immediate" usages
   tokenCredit: 10, // maximum tasks that can be scheduled
   rate: 10         // refill rate (requests per second)
 }
 
-const bucket = new LazyBucket(config)
+const bucket = new LimitedPromise(config)
 
 for (let i = 0; i <= 30; i++) {
   bucket
