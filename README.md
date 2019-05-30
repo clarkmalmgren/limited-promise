@@ -10,7 +10,7 @@ $ yarn add limited-promise
 
 Using npm...
 ```
-$ npm install limited-promise
+$ npm install limited-promise --save
 ```
 
 ## Usage
@@ -38,6 +38,23 @@ In the above scenario, the first 10 tasks will fire immediately. The next
 
 If new tasks arrive before the scheduled token debt has been paid off (time passes),
 then new tokens will be scheduled for the future.
+
+### Initial Balance
+
+If you want to set a higher initial balance of tokens (to allow for a burst of tasks on
+app startup for example), you can pass a custom initial limit.
+
+```typescript
+const config: LimitedPromiseConfig = {
+  tokens: 10,      // maximum burst "immediate" usages
+  tokenCredit: 10, // maximum tasks that can be scheduled
+  rate: 10         // refill rate (requests per second)
+}
+
+const initialBalance: number = 100;
+
+const bucket = new LimitedPromise(config, initialBalance);
+```
 
 ## Notes on Implementation
 
