@@ -65,6 +65,9 @@ export default class LimitedPromise {
     if (this._balance < this.config.tokens) {
       const addedTokens = dt / 1000.0 * this.config.rate
       this._balance = Math.min(this._balance + addedTokens, this.config.tokens)
+
+      //this prevents large negative balances if your device time changes
+      this._balance = Math.max(this._balance, -this.config.tokenCredit)
     }
 
     // Time to calculate duration
