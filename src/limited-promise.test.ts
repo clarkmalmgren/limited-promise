@@ -1,4 +1,4 @@
-import LimitedPromise from './index'
+import LimitedPromise, { CancellationHandle } from './index'
 
 function now(): number { return new Date().getTime() }
 
@@ -131,4 +131,85 @@ it('should do nothing when cancelling if all tasks have fired', () => {
   return Promise
     .all(promises)
     .then(() => bucket.cancel())
+})
+
+type PromiseMonitor = { resolved: boolean, rejected: boolean, promise: Promise<void> }
+function monitor(bucket: LimitedPromise, handle?: CancellationHandle): PromiseMonitor {
+  const status: PromiseMonitor = {
+    resolved: false,
+    rejected: false,
+    promise: bucket
+      .next(handle)
+      .then(() => { status.resolved = true })
+      .catch(() => { status.rejected = true })
+  }
+  
+  return status
+}
+
+it('should work for a simple controlled timer example', async () => {
+  jest.useFakeTimers()
+  const bucket = new LimitedPromise({ rate: 1, tokens: 100 }, 0)
+  expect(bucket.balance).toEqual(0)
+
+  const p1 = monitor(bucket)
+  const p2 = monitor(bucket)
+  const p3 = monitor(bucket)
+  expect(bucket.balance).toBeCloseTo(-3, 1)
+
+  expect(p1.resolved).toEqual(false)
+  expect(p2.resolved).toEqual(false)
+  expect(p3.resolved).toEqual(false)
+
+  jest.advanceTimersByTime(1000)
+  await p1.promise
+  expect(p1.resolved).toEqual(true)
+  expect(p2.resolved).toEqual(false)
+  expect(p3.resolved).toEqual(false)
+})
+
+function stringify(monitors: PromiseMonitor[]): string {
+  return monitors.map(m => (m.resolved && m.rejected) ? '!' : m.resolved ? '✓' : m.rejected ? 'x' : ' ').join('')
+}
+
+it('should work when cancelling specific tasks', async () => {
+  jest.useFakeTimers()
+  const bucket = new LimitedPromise({ rate: 1000, tokens: 20, tokenCredit: 20 }, 0)
+  expect(bucket.balance).toEqual(0)
+
+  const monitors = [
+    monitor(bucket, 'noop'),
+    monitor(bucket, 'noop'),
+    monitor(bucket, 'kill -9'),
+    monitor(bucket, 'kill -9'),
+    monitor(bucket),
+    monitor(bucket),
+    monitor(bucket),
+    monitor(bucket, 'kill -9'),
+    monitor(bucket, 'kill -9'),
+    monitor(bucket)
+  ]
+  expect(bucket.balance).toBeCloseTo(-10, 1)
+
+  await Promise.resolve()
+  expect(stringify(monitors)).toEqual('          ')
+  jest.advanceTimersByTime(3)
+  await Promise.resolve()
+  expect(stringify(monitors)).toEqual('✓✓✓       ')
+  bucket.cancel('noop')
+  await Promise.all([monitors[0].promise, monitors[1].promise])
+  expect(stringify(monitors)).toEqual('✓✓✓       ')
+  bucket.cancel('kill -9')
+  await Promise.all([monitors[3].promise, monitors[7].promise, monitors[8].promise])
+  expect(stringify(monitors)).toEqual('✓✓✓x   xx ')
+  jest.advanceTimersByTime(1)
+  await Promise.resolve()
+  expect(stringify(monitors)).toEqual('✓✓✓x✓  xx ')
+  jest.advanceTimersByTime(3)
+  await Promise.resolve()
+  expect(stringify(monitors)).toEqual('✓✓✓x✓✓✓xx✓')
+})
+
+afterEach(() => {
+  jest.useRealTimers()
 })

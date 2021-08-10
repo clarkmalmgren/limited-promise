@@ -56,9 +56,28 @@ const initialBalance: number = 100;
 const bucket = new LimitedPromise(config, initialBalance);
 ```
 
+### Cancellation Handles
+
+In certain scenarios, you may want to cancel one or more requests before they actually trigger.
+For example, if you have a page that makes many requests and the user navigates away before all
+of the requests have fired, you can cancel them using a handle. The handle must be passed in at
+the time that a token is requested from the bucket. This can be either a `string` or a `number`.
+
+```typescript
+const bucket = new LimitedPromise()
+
+const promise1 bucket.next('a').then(() => 'apples')
+const promise2 bucket.next('a').then(() => 'and')
+const promise3 bucket.next('b').then(() => 'bananas')
+
+bucket.cancel('a')
+
+// promise1 is rejected
+// promise2 is rejected
+// promise3 is the NEXT promise to resolve
+```
+
 ## Notes on Implementation
 
-This uses `setTimeout` and `Date` for scheduling and thus is restricted to that level
-of granularity. Each bucket has an at-rest footprint of 
-
-
+This uses `setInterval` and `Date` for scheduling and thus is restricted to that level
+of granularity.
