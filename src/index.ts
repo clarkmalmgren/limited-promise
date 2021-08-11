@@ -25,18 +25,26 @@ const DefaultConfig: FullLimitedPromiseConfig = {
   rate: 1 / 60
 }
 
+type ResolveFunction = () => void
 type RejectFunction = (reason?: any) => void
 type PendingTaskContext = {
+  resolve: ResolveFunction
   reject: RejectFunction
-  timeout: any
+  cancelled: boolean
+  handle?: CancellationHandle 
+  id?: number
 }
+
+export type CancellationHandle = string | number
 
 export default class LimitedPromise {
 
   private config: FullLimitedPromiseConfig
   private _balance: number
   private lastTime: number
-  private pending: { [id: number]: PendingTaskContext }
+  private pending: PendingTaskContext[]
+  private cancellable: Record<number | string, Record<number, PendingTaskContext>>
+  private pendingTimeout?: any // Node and browser can't agree on the type here
   private nextId: number
 
   /**
@@ -49,13 +57,22 @@ export default class LimitedPromise {
    */
   constructor(config: LimitedPromiseConfig = {}, initialBalance?: number) {
     this.config = Object.assign(Object.assign({}, DefaultConfig), config)
-    this._balance = initialBalance || this.config.tokens
+    this._balance = typeof initialBalance === 'undefined' ? this.config.tokens : initialBalance
     this.lastTime = new Date().getTime()
-    this.pending = {}
+    this.pending = []
+    this.cancellable = {}
     this.nextId = 0
+
+    /* If someone really wants to start with a depleted bucket, add dummy pending tasks */
+    if (this._balance < 0) {
+      for (let i = 0; i > this._balance; i--) {
+        this.pending.push({ resolve: () => 0, reject: () => 0, cancelled: false })
+      }
+      this.pendingTimeout = setInterval(() => this.resolveNext(), 1000.0 / this.config.rate)
+    }
   }
 
-  private nextDelay(): number {
+  next(cancellationHandle?: CancellationHandle): Promise<void> {
     // First update times
     const now = new Date().getTime()
     const dt = now - this.lastTime
@@ -70,53 +87,84 @@ export default class LimitedPromise {
       this._balance = Math.max(this._balance, -this.config.tokenCredit)
     }
 
-    // Time to calculate duration
-    if (this._balance >= 1) {
-      this._balance--
-      return 0
-    } else if (this._balance < -this.config.tokenCredit + 1) {
-      throw new Error(`Exceeded token credit allowance. Current Balance: ${this._balance}`)
-    } else {
-      const delayInTokens = 1 - this._balance
-      this._balance--
-      return 1000.0 * delayInTokens / this.config.rate
+    // If the token count is exceeded, throw an error
+    if (this._balance < -this.config.tokenCredit + 1) {
+      return Promise.reject(new Error(`Exceeded token credit allowance. Current Balance: ${this._balance}`))
     }
+
+    // All good, enough tokens to proceed. Deprecate and then execute based on whether or not it is async
+    this._balance--
+    return (this._balance >= 0) ?
+      Promise.resolve() :
+      new Promise((resolve, reject) => {
+        // Add context to pending
+        const context: PendingTaskContext = { resolve, reject, cancelled: false }
+        this.pending.push(context)
+
+        // Associate context with CancellationHandle if one was provided
+        if (typeof cancellationHandle !== 'undefined') {
+          const id = this.nextId++
+          context.id = id
+          context.handle = cancellationHandle
+          if (this.cancellable[cancellationHandle]) {
+            this.cancellable[cancellationHandle][id] = context
+          } else {
+            this.cancellable[cancellationHandle] = { [id]: context }
+          }
+        }
+
+        // Finally make sure that the timer is running
+        if (typeof this.pendingTimeout === 'undefined') {
+          this.pendingTimeout = setInterval(() => this.resolveNext(), 1000.0 / this.config.rate)
+        }
+      })
   }
 
-  next(): Promise<void> {
-    const id = this.nextId++
-
-    return new Promise<void>((resolve, reject) => {
-      try {
-        const delay = this.nextDelay()
-        if (delay <= 0) {
-          resolve()
-        } else {
-          const timeout = setTimeout(() => {
-            resolve()
-            delete(this.pending[id])
-          }, delay)
-
-          this.pending[id] = { reject: reject, timeout: timeout }
-        }
-      } catch(e) {
-        reject(e)
+  private resolveNext(): void {
+    try {
+      // Find the next non-cancelled event
+      let next = this.pending.shift()
+      while (next && next.cancelled) {
+        next = this.pending.shift()
       }
-    })
+
+      // Assuming there is an actual event to run, run it and delete it's cancellation lookup
+      if (next) {
+        next.resolve()
+
+        if (typeof next.handle !== 'undefined' && typeof next.id !== 'undefined') {
+          delete this.cancellable[next.handle][next.id]
+          if (Object.keys(this.cancellable[next.handle]).length === 0) {
+            delete this.cancellable[next.handle]
+          }
+        }
+      }
+    } finally {
+      // If the pending array is non-empty, schedule again
+      if (this.pending.length === 0) {
+        clearInterval(this.pendingTimeout)
+        this.pendingTimeout = undefined
+      }
+    }
   }
 
   get balance(): number {
     return this._balance
   }
 
-  cancel(): void {
-    Object
-      .values(this.pending)
-      .forEach(task => {
-        task.reject(new Error("Bucket Cancelled"))
-        clearTimeout(task.timeout)
-      })
+  cancel(handle?: CancellationHandle): void {
+    if (typeof handle === 'undefined') {
+      this.pending.forEach(context => { context.reject(new Error("Bucket Cancelled")) })
+      this.pending = []
+      this.cancellable = {}
+    } else if (this.cancellable[handle])  {
+      Object.values(this.cancellable[handle])
+        .forEach(context => {
+          context.reject(new Error(`Cancelled based on handle[${handle}]`))
+          context.cancelled = true
+        })
 
-    this.pending = {}
+      delete this.cancellable[handle]
+    }
   }
 }
